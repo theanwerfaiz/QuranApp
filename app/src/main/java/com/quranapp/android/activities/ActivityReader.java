@@ -136,8 +136,9 @@ public class ActivityReader extends ReaderPossessingActivity {
                         final int fromVerse;
                         final int toVerse;
                         Pair<Integer, Integer> verseRange = mReaderParams.verseRange;
+                        final var isSingleVerse = QuranUtils.doesRangeDenoteSingle(verseRange);
 
-                        if (QuranUtils.doesRangeDenoteSingle(verseRange)) {
+                        if (isSingleVerse) {
                             fromVerse = 1;
                             toVerse = currChapter.getVerseCount();
                         } else {
@@ -145,11 +146,18 @@ public class ActivityReader extends ReaderPossessingActivity {
                             toVerse = verseRange.getSecond();
                         }
 
+                        var playerCurrVerseNo = mPlayerService.getP().getCurrentVerseNo();
+
+                        if (playerCurrVerseNo == -1) {
+                            // get the first verse of the range (even if it's the single verse mode)
+                            playerCurrVerseNo = verseRange.getFirst();
+                        }
+
                         mPlayerService.onChapterChanged(
                             currChapter.getChapterNumber(),
                             fromVerse,
                             toVerse,
-                            mPlayerService.getP().getCurrentVerseNo()
+                            playerCurrVerseNo
                         );
                     }
                 }
@@ -580,16 +588,9 @@ public class ActivityReader extends ReaderPossessingActivity {
         }
 
         switch (mReaderParams.readType) {
-            case READER_READ_TYPE_VERSES:
-                initVerseRange(initialChapter, initVerses);
-                break;
-            case READER_READ_TYPE_JUZ:
-                initJuz(initialJuzNo);
-                break;
-            case READER_READ_TYPE_CHAPTER:
-            default:
-                initChapter(initialChapter);
-                break;
+            case READER_READ_TYPE_VERSES -> initVerseRange(initialChapter, initVerses);
+            case READER_READ_TYPE_JUZ -> initJuz(initialJuzNo);
+            default -> initChapter(initialChapter);
         }
     }
 
@@ -600,8 +601,7 @@ public class ActivityReader extends ReaderPossessingActivity {
 
         if (serializable instanceof Pair) {
             return (Pair<Integer, Integer>) serializable;
-        } else if (serializable instanceof int[]) {
-            int[] verses = (int[]) serializable;
+        } else if (serializable instanceof int[] verses) {
             return new Pair<>(verses[0], verses[1]);
         }
 

@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
 import android.graphics.Bitmap
 import android.media.AudioManager
 import android.net.Uri
@@ -13,11 +14,26 @@ import android.os.Build
 import android.os.Handler
 import android.support.v4.media.session.MediaSessionCompat
 import android.widget.Toast
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import androidx.core.util.Pair
-import com.google.android.exoplayer2.*
-import com.google.android.exoplayer2.Player.*
+import com.google.android.exoplayer2.C
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.PlaybackException
+import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.Player.DISCONTINUITY_REASON_AUTO_TRANSITION
+import com.google.android.exoplayer2.Player.DISCONTINUITY_REASON_SEEK
+import com.google.android.exoplayer2.Player.Listener
+import com.google.android.exoplayer2.Player.PositionInfo
+import com.google.android.exoplayer2.Player.REPEAT_MODE_OFF
+import com.google.android.exoplayer2.Player.REPEAT_MODE_ONE
+import com.google.android.exoplayer2.Player.STATE_BUFFERING
+import com.google.android.exoplayer2.Player.STATE_ENDED
+import com.google.android.exoplayer2.Player.STATE_IDLE
+import com.google.android.exoplayer2.Player.STATE_READY
 import com.google.android.exoplayer2.audio.AudioAttributes
 import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector
 import com.google.android.exoplayer2.source.ConcatenatingMediaSource
@@ -139,6 +155,8 @@ class RecitationService : Service(), MediaDescriptionAdapter {
 
                             val nextVerse = recParams.getNextVerse(quranMeta!!)
 
+                            Log.d(nextVerse)
+
                             if (nextVerse != null) {
                                 reciteVerse(nextVerse)
                             } else {
@@ -179,7 +197,12 @@ class RecitationService : Service(), MediaDescriptionAdapter {
                 }
 
                 override fun onNotificationPosted(notificationId: Int, notification: Notification, ongoing: Boolean) {
-                    startForeground(notificationId, notification)
+                    ServiceCompat.startForeground(
+                        this@RecitationService,
+                        notificationId,
+                        notification,
+                        FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                    )
                 }
             })
             .setSmallIconResourceId(R.drawable.dr_logo)
@@ -216,9 +239,14 @@ class RecitationService : Service(), MediaDescriptionAdapter {
             setClearMediaItemsOnStop(true)
         }
 
-        registerReceiver(headsetReceiver, IntentFilter(AudioManager.ACTION_HEADSET_PLUG).apply {
-            addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
-        })
+        ContextCompat.registerReceiver(
+            this,
+            headsetReceiver,
+            IntentFilter(AudioManager.ACTION_HEADSET_PLUG).apply {
+                addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+            },
+            ContextCompat.RECEIVER_EXPORTED
+        )
 
         syncConfigurations()
     }
@@ -270,6 +298,15 @@ class RecitationService : Service(), MediaDescriptionAdapter {
     fun updateContinuePlaying(continuePlaying: Boolean) {
         recParams.continueRange = continuePlaying
         SPReader.setRecitationContinueChapter(this, continuePlaying)
+
+        if (!recParams.previouslyPlaying) {
+            return
+        }
+
+        pauseMedia()
+        val currentPos = player.currentPosition
+        restartVerse(true)
+        player.seekTo(currentPos)
     }
 
     fun updateVerseSync(sync: Boolean, fromUser: Boolean) {
@@ -308,8 +345,8 @@ class RecitationService : Service(), MediaDescriptionAdapter {
     @Synchronized
     fun onChapterChanged(chapterNo: Int, fromVerse: Int, toVerse: Int, currentVerse: Int) {
         recParams.currentVerse = ChapterVersePair(chapterNo, currentVerse)
-        recParams.firstVerse = ChapterVersePair(chapterNo, fromVerse)
-        recParams.lastVerse = ChapterVersePair(chapterNo, toVerse)
+        recParams.firstVerseOfRange = ChapterVersePair(chapterNo, fromVerse)
+        recParams.lastVerseOfRange = ChapterVersePair(chapterNo, toVerse)
         recParams.currentReciter = SPReader.getSavedRecitationSlug(this)
         recParams.currentTranslationReciter = SPReader.getSavedRecitationTranslationSlug(this)
     }
@@ -320,9 +357,9 @@ class RecitationService : Service(), MediaDescriptionAdapter {
         val firstVerse = quranMeta.getVerseRangeOfChapterInJuz(juzNo, firstChapter).first
         val (_, lastVerse) = quranMeta.getVerseRangeOfChapterInJuz(juzNo, lastChapter)
 
-        recParams.firstVerse = ChapterVersePair(firstChapter, firstVerse)
-        recParams.lastVerse = ChapterVersePair(lastChapter, lastVerse)
-        recParams.currentVerse = recParams.firstVerse
+        recParams.firstVerseOfRange = ChapterVersePair(firstChapter, firstVerse)
+        recParams.lastVerseOfRange = ChapterVersePair(lastChapter, lastVerse)
+        recParams.currentVerse = recParams.firstVerseOfRange
         recParams.currentReciter = SPReader.getSavedRecitationSlug(this)
         recParams.currentTranslationReciter = SPReader.getSavedRecitationTranslationSlug(this)
     }
@@ -420,7 +457,7 @@ class RecitationService : Service(), MediaDescriptionAdapter {
         val isOnlyTranslation = audioOption == RecitationUtils.AUDIO_OPTION_ONLY_TRANSLATION
 
         var currentVerse = recParams.currentVerse
-        val lastVerse = recParams.lastVerse
+        val lastVerse = recParams.lastVerseOfRange
 
         if (currentVerse == lastVerse) return
 
@@ -535,7 +572,7 @@ class RecitationService : Service(), MediaDescriptionAdapter {
         player.clearMediaItems()
         playlist.clear()
 
-        recParams.currentVerse = recParams.firstVerse
+        recParams.currentVerse = recParams.firstVerseOfRange
         recPlayer?.onStopMedia(recParams)
 
         runAudioProgress()
@@ -588,7 +625,7 @@ class RecitationService : Service(), MediaDescriptionAdapter {
         if (isLoadingInProgress) return
 
         if (playlist.size == 0) {
-            reciteVerse(recParams.firstVerse)
+            reciteVerse(recParams.firstVerseOfRange)
             return
         }
 

@@ -34,6 +34,7 @@ import com.quranapp.android.components.quran.subcomponents.Footnote;
 import com.quranapp.android.components.quran.subcomponents.QuranTranslBookInfo;
 import com.quranapp.android.components.quran.subcomponents.Translation;
 import com.quranapp.android.databinding.LytVerseShareBinding;
+import com.quranapp.android.utils.Log;
 import com.quranapp.android.utils.extensions.ViewPaddingKt;
 import com.quranapp.android.utils.univ.MessageUtils;
 import com.quranapp.android.utils.univ.StringUtils;
@@ -241,7 +242,8 @@ public class VerseShareDialog extends PeaceDialog {
             boolean incFootnotes = binding.includeFootnotes.isChecked();
 
             if (!quranMeta.isVerseRangeValid4Chapter(mChapterNo, fromVerse, toVerse)) {
-                MessageUtils.INSTANCE.showRemovableToast(mActivity, getContext().getString(R.string.strMsgEnterValidRange),
+                MessageUtils.INSTANCE.showRemovableToast(mActivity,
+                    getContext().getString(R.string.strMsgEnterValidRange),
                     Toast.LENGTH_LONG);
                 return;
             }
@@ -270,6 +272,8 @@ public class VerseShareDialog extends PeaceDialog {
                 }
             }
 
+            Log.d(sb);
+
             if (sb.length() == 0) {
                 return;
             }
@@ -293,20 +297,12 @@ public class VerseShareDialog extends PeaceDialog {
                 sb.append(mActivity.mQuranRef.get().getVerse(chapNo, verseNo).arabicText);
             }
 
+            for (int i = 0, l = transls.size(); i < l; i++) {
+                sb.append(makeTranslText(transls.get(i), hasMultiTransls, incFootnotes, whatsappStyling));
 
-            if (hasMultiTransls) {
-                if (incAr) {
+                if (i < l - 1) {
                     sb.append("\n\n");
                 }
-                bold(sb, "TRANSLATIONS:", whatsappStyling);
-            }
-
-            for (Translation transl : transls) {
-                if (hasMultiTransls) {
-                    sb.append("\n");
-                }
-
-                sb.append(makeTranslText(transl, hasMultiTransls, incFootnotes, whatsappStyling));
             }
 
             if (isSingleVerse && !hasMultiTransls) {
@@ -317,7 +313,7 @@ public class VerseShareDialog extends PeaceDialog {
         private CharSequence makeTranslText(Translation transl, boolean inclAuthor, boolean inclFootnotes, boolean whatsappStyle) {
             StringBuilder sb = new StringBuilder();
 
-            sb.append("\n\"").append(cleanHTML(transl.getText(), inclFootnotes)).append("\"");
+            sb.append("\n").append(cleanHTML(transl.getText(), inclFootnotes));
 
             Map<Integer, Footnote> footnotes = transl.getFootnotes();
             boolean hasFootnotes = !footnotes.isEmpty();
@@ -329,15 +325,13 @@ public class VerseShareDialog extends PeaceDialog {
                 italic(sb, author, whatsappStyle);
             }
 
-            if (inclFootnotes) {
-                if (hasFootnotes) {
-                    sb.append("\n\t");
-                    bold(sb, "FOOTNOTES:", whatsappStyle);
-                    footnotes.forEach((number, footnote) -> {
-                        sb.append("\n\t\t").append(number).append(". ");
-                        sb.append(Html.fromHtml(footnote.text));
-                    });
-                }
+            if (inclFootnotes && hasFootnotes) {
+                sb.append("\n\n");
+                bold(sb, "FOOTNOTES:", whatsappStyle);
+                footnotes.forEach((number, footnote) -> {
+                    sb.append("\n\t\t").append("[").append(number).append("] ");
+                    sb.append(Html.fromHtml(footnote.text));
+                });
             }
             return sb;
         }

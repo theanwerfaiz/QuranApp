@@ -239,7 +239,7 @@
     <string name="strMsgTranslFailedToDownload" formatted="false">\"%s\" डाउनलोड होने में विफल रहा।</string>
     <string name="strMsgTranslDownloaded" formatted="false">डाउनलोड किया गया: \"%s\"।</string>
     <string name="strMsgTranslNoneSelected">कोई अनुवाद नहीं चुना गया है। अनुवाद ढूंढने के लिए सेटिंग में जाएं।</string>
-    <string name="strDescAddToBookmarks">बुकमार्क करें</string>
+    <string name="strDescAddToBookmarks">बुकमार्क्स में जोड़ें</string>
     <string name="strDescGoBack">पीछे जाएं</string>
     <string name="strDescClose">बंद करें</string>
     <string name="strDescVerseNo" formatted="false">आयत संख्या %d।</string>
@@ -414,4 +414,10 @@
 \n%s</string>
     <string name="strMsgDuaOf" formatted="false">%s की दुआ</string>
     <string name="strMsgPropheticDuaInQuran" formatted="false">कुरान में %s की दुआ</string>
+    <string name="titleArabicTextToggle">कुरान की आयत सक्षम करें</string>
+    <string name="msgClearReadHistory">पढ़ा हुआ हिस्ट्री हटाएं</string>
+    <string name="titleResourceDownloadSource">संसाधन डाउनलोड स्रोत</string>
+    <string name="msgResourceDownloadSource">यदि एक स्रोत काम नहीं कर रहा है तो किसी भिन्न स्रोत से कुरान डेटा डाउनलोड करने के लिए इस विकल्प का उपयोग करें</string>
+    <string name="msgClearSearchHistory">सर्च हिस्ट्री हटाएं</string>
+    <string name="msgArabicTextToggle">इस सुविधा को अक्षम करने से कुरान की आयतें पूरे ऐप से छिप जाएंगी।</string>
 </resources>
